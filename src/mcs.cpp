@@ -6,31 +6,39 @@
 #include <boost/graph/graphml.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/graph/graphviz.hpp>
+
 
 namespace fs = boost::filesystem;
 
 typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS, boost::property<boost::vertex_name_t,std::string>,boost::property<boost::edge_name_t,std::string> > Graph;
 int fileId;
 
-bool saveGraphToFile(std::string file, Graph g)
+bool saveGraphToFile(std::string file, Graph g, int selector)
 {
 	std::ofstream outfile (file.c_str(),std::ofstream::binary);
 	boost::dynamic_properties dp;
 	dp.property("Vname", get(boost::vertex_name_t(), g));
 	dp.property("Ename", get(boost::edge_name_t(), g));
-	boost::write_graphml(outfile, g, dp, true);
+	if(selector==0)
+		boost::write_graphml(outfile, g, dp, true);
+	else
+		boost::write_graphviz(outfile, g);
 	outfile.close();
 	return true;
 
 }
-bool readGraphFromFile(std::string file, Graph& g)
+bool readGraphFromFile(std::string file, Graph& g, int selector)
 {
 	if (fs::exists(file.c_str())){
 		std::ifstream inFile (file.c_str(), std::ifstream::binary);
 		boost::dynamic_properties dp;
 		dp.property("Vname", get(boost::vertex_name_t(), g));
 		dp.property("Ename", get(boost::edge_name_t(), g));
-		boost::read_graphml(inFile, g, dp);
+		if(selector==0)
+			boost::read_graphml(inFile, g, dp);
+		else
+			boost::read_graphviz(inFile, g, dp, "Vname");
 		return true;
 	}
 	else
@@ -64,12 +72,15 @@ struct clique_printer
     	v_namesNew = get(boost::vertex_name, gNew);
     	e_namesNew = get(boost::edge_name, gNew);
     	typename Clique::const_iterator i, end = c.end();
+    	os<<c.end()-c.begin();
     	for(i = c.begin(); i != end; ++i) {
     		Graph::vertex_descriptor v0 = boost::add_vertex(gNew);
     		v_namesNew[v0] = v_names[*i];
     	}
 
-    	saveGraphToFile("out"+ boost::lexical_cast<std::string>(fileId) +".xml",gNew);
+    	//saveGraphToFile("out"+ boost::lexical_cast<std::string>(fileId) +".xml",gNew, 0);
+    	saveGraphToFile("out"+ boost::lexical_cast<std::string>(fileId) +".dot",gNew, 1);
+
     	os<<++fileId;
     }
     OutputStream& os;
@@ -79,18 +90,28 @@ int main(int argc, char* argv[])
 {
 	size_t cliques;
 	Graph g;
-
+	bool stat = false;
 	boost::property_map<Graph, boost::vertex_name_t>::type v_name = get(boost::vertex_name, g);
 	boost::property_map<Graph, boost::edge_name_t>::type e_name = get(boost::edge_name, g);
 	clique_printer<std::ostream> vis(std::cout, v_name, e_name);
-	if(argc==2)
-		if(readGraphFromFile(argv[1],g)){
+	if(argc==2){
+		if(fs::extension(argv[1])==".dot")
+			stat = readGraphFromFile(argv[1],g, 1);
+		else if(fs::extension(argv[1])==".xml")
+			stat = readGraphFromFile(argv[1],g, 0);
+		else{
+			std::cout<<"File type not supported!"<<std::endl;
+			return -1;
+		}
+		if(stat){
+			saveGraphToFile("testOut.dot",g, 1);
 			boost::bron_kerbosch_all_cliques(g, vis);
 		}
 		else{
 			std::cout<<"File does not exists!"<<std::endl;
 			return -1;
 		}
+	}
 	else
 	{
 		std::cout<<"Missing path to graph file!"<<std::endl;
