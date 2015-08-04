@@ -18,12 +18,14 @@ bool saveGraphToFile(std::string file, Graph g, int selector)
 {
 	std::ofstream outfile (file.c_str(),std::ofstream::binary);
 	boost::dynamic_properties dp;
-	dp.property("Vname", get(boost::vertex_name_t(), g));
+	dp.property("label", get(boost::vertex_name_t(), g));
+	dp.property("node_id", get(boost::vertex_index_t(), g));
 	dp.property("Ename", get(boost::edge_name_t(), g));
 	if(selector==0)
 		boost::write_graphml(outfile, g, dp, true);
 	else
-		boost::write_graphviz(outfile, g);
+		boost::write_graphviz_dp(outfile, g, dp, "node_id");
+		//boost::write_graphviz(outfile, g);
 	outfile.close();
 	return true;
 
@@ -33,12 +35,12 @@ bool readGraphFromFile(std::string file, Graph& g, int selector)
 	if (fs::exists(file.c_str())){
 		std::ifstream inFile (file.c_str(), std::ifstream::binary);
 		boost::dynamic_properties dp;
-		dp.property("Vname", get(boost::vertex_name_t(), g));
+		dp.property("label", get(boost::vertex_name_t(), g));
 		dp.property("Ename", get(boost::edge_name_t(), g));
 		if(selector==0)
 			boost::read_graphml(inFile, g, dp);
 		else
-			boost::read_graphviz(inFile, g, dp, "Vname");
+			boost::read_graphviz(inFile, g, dp, "label");
 		return true;
 	}
 	else
@@ -103,10 +105,8 @@ int main(int argc, char* argv[])
 			std::cout<<"File type not supported!"<<std::endl;
 			return -1;
 		}
-		if(stat){
-			saveGraphToFile("testOut.dot",g, 1);
+		if(stat)
 			boost::bron_kerbosch_all_cliques(g, vis);
-		}
 		else{
 			std::cout<<"File does not exists!"<<std::endl;
 			return -1;
