@@ -17,15 +17,16 @@ int fileId;
 bool saveGraphToFile(std::string file, Graph g, int selector)
 {
 	std::ofstream outfile (file.c_str(),std::ofstream::binary);
+
 	boost::dynamic_properties dp;
 	dp.property("label", get(boost::vertex_name_t(), g));
 	dp.property("node_id", get(boost::vertex_index_t(), g));
-	dp.property("Ename", get(boost::edge_name_t(), g));
+	dp.property("label", get(boost::edge_name_t(), g));
+
 	if(selector==0)
 		boost::write_graphml(outfile, g, dp, true);
 	else
 		boost::write_graphviz_dp(outfile, g, dp, "node_id");
-		//boost::write_graphviz(outfile, g);
 	outfile.close();
 	return true;
 
@@ -34,9 +35,12 @@ bool readGraphFromFile(std::string file, Graph& g, int selector)
 {
 	if (fs::exists(file.c_str())){
 		std::ifstream inFile (file.c_str(), std::ifstream::binary);
+
 		boost::dynamic_properties dp;
 		dp.property("label", get(boost::vertex_name_t(), g));
-		dp.property("Ename", get(boost::edge_name_t(), g));
+		dp.property("node_id", get(boost::vertex_index_t(), g));
+		dp.property("label", get(boost::edge_name_t(), g));
+
 		if(selector==0)
 			boost::read_graphml(inFile, g, dp);
 		else
@@ -45,6 +49,20 @@ bool readGraphFromFile(std::string file, Graph& g, int selector)
 	}
 	else
 		return false;
+
+}
+
+void addAllEdges(Graph& g)
+{
+	typedef boost::graph_traits<Graph>::vertex_iterator vertex_iter;
+	std::pair<vertex_iter, vertex_iter> vp1,vp2;
+	for (vp1 = vertices(g); vp1.first != vp1.second; ++vp1.first) {
+		for (vp2.first = vp1.first+1, vp2.second = vp1.second; vp2.first < vp2.second; ++vp2.first) {
+			std::cout<<"a"<<std::endl;
+			boost::add_edge(*vp1.first,*vp2.first,g);
+		}
+	}
+
 
 }
 
@@ -60,7 +78,6 @@ struct clique_printer
 	clique_printer(OutputStream& stream, boost::property_map<Graph, boost::vertex_name_t>::type v_namesP, boost::property_map<Graph, boost::edge_name_t>::type e_namesP)
         : os(stream)
     {
-
 		fileId = 0;
 		v_names = v_namesP;
     	e_names = e_namesP;
@@ -74,16 +91,13 @@ struct clique_printer
     	v_namesNew = get(boost::vertex_name, gNew);
     	e_namesNew = get(boost::edge_name, gNew);
     	typename Clique::const_iterator i, end = c.end();
-    	os<<c.end()-c.begin();
     	for(i = c.begin(); i != end; ++i) {
     		Graph::vertex_descriptor v0 = boost::add_vertex(gNew);
     		v_namesNew[v0] = v_names[*i];
+
     	}
-
-    	//saveGraphToFile("out"+ boost::lexical_cast<std::string>(fileId) +".xml",gNew, 0);
+    	addAllEdges(gNew);
     	saveGraphToFile("out"+ boost::lexical_cast<std::string>(fileId) +".dot",gNew, 1);
-
-    	os<<++fileId;
     }
     OutputStream& os;
 };
