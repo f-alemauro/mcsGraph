@@ -5,12 +5,24 @@
 #include <boost/graph/bron_kerbosch_all_cliques.hpp>
 #include <boost/graph/graphml.hpp>
 #include <boost/filesystem.hpp>
-
+#include <boost/lexical_cast.hpp>
 
 namespace fs = boost::filesystem;
 
 typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS, boost::property<boost::vertex_name_t,std::string>,boost::property<boost::edge_name_t,std::string> > Graph;
+int fileId;
 
+bool saveGraphToFile(std::string file, Graph g)
+{
+	std::ofstream outfile (file.c_str(),std::ofstream::binary);
+	boost::dynamic_properties dp;
+	dp.property("Vname", get(boost::vertex_name_t(), g));
+	dp.property("Ename", get(boost::edge_name_t(), g));
+	boost::write_graphml(outfile, g, dp, true);
+	outfile.close();
+	return true;
+
+}
 bool readGraphFromFile(std::string file, Graph& g)
 {
 	if (fs::exists(file.c_str())){
@@ -26,33 +38,39 @@ bool readGraphFromFile(std::string file, Graph& g)
 
 }
 
-bool saveGraphToFile(std::string file, Clique g){
-	std::ofstream outfile (file.c_str(),std::ofstream::binary);
-	boost::dynamic_properties dp;
-	dp.property("Vname", get(boost::vertex_name_t(), g));
-	dp.property("Ename", get(boost::edge_name_t(), g));
-	boost::write_graphml(outfile, g, dp, true);
-	outfile.close();
-	return true;
-}
-
 template <typename OutputStream>
 struct clique_printer
 {
-	boost::property_map<Graph, boost::vertex_name_t>::type v_names;
-    clique_printer(OutputStream& stream, boost::property_map<Graph, boost::vertex_name_t>::type asd)
-        : os(stream)
-    { v_names = asd; }
 
-    template <typename Clique, typename Graph>
-    void clique(const Clique& c, const Graph& g)
+	boost::property_map<Graph, boost::vertex_name_t>::type v_names;
+	boost::property_map<Graph, boost::edge_name_t>::type e_names;
+	boost::property_map<Graph, boost::vertex_name_t>::type v_namesNew;
+	boost::property_map<Graph, boost::edge_name_t>::type e_namesNew;
+
+	clique_printer(OutputStream& stream, boost::property_map<Graph, boost::vertex_name_t>::type v_namesP, boost::property_map<Graph, boost::edge_name_t>::type e_namesP)
+        : os(stream)
     {
-//        typename Clique::const_iterator i, end = c.end();
-//        for(i = c.begin(); i != end; ++i) {
-//            os << v_names[*i] << " ";
-//        }
-//        os << std::endl;
-    	saveGraphToFile("prova.xml",c);
+
+		fileId = 0;
+		v_names = v_namesP;
+    	e_names = e_namesP;
+    }
+
+    template <typename Clique, typename TGraph>
+    void clique(const Clique& c, const TGraph& g)
+    {
+    	os<<"Found new clique!"<<std::endl;
+    	Graph gNew(0);
+    	v_namesNew = get(boost::vertex_name, gNew);
+    	e_namesNew = get(boost::edge_name, gNew);
+    	typename Clique::const_iterator i, end = c.end();
+    	for(i = c.begin(); i != end; ++i) {
+    		Graph::vertex_descriptor v0 = boost::add_vertex(gNew);
+    		v_namesNew[v0] = v_names[*i];
+    	}
+
+    	saveGraphToFile("out"+ boost::lexical_cast<std::string>(fileId) +".xml",gNew);
+    	os<<++fileId;
     }
     OutputStream& os;
 };
@@ -61,8 +79,10 @@ int main(int argc, char* argv[])
 {
 	size_t cliques;
 	Graph g;
+
 	boost::property_map<Graph, boost::vertex_name_t>::type v_name = get(boost::vertex_name, g);
-	clique_printer<std::ostream> vis(std::cout, v_name);
+	boost::property_map<Graph, boost::edge_name_t>::type e_name = get(boost::edge_name, g);
+	clique_printer<std::ostream> vis(std::cout, v_name, e_name);
 	if(argc==2)
 		if(readGraphFromFile(argv[1],g)){
 			boost::bron_kerbosch_all_cliques(g, vis);
