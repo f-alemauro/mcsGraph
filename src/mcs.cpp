@@ -9,12 +9,12 @@
 #include <boost/graph/graphviz.hpp>
 #include <boost/graph/filtered_graph.hpp>
 #include <boost/graph/graph_utility.hpp>
+#include <boost/graph/copy.hpp>
 
 namespace fs = boost::filesystem;
 
 typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS, boost::property<boost::vertex_name_t,std::string>,boost::property<boost::edge_name_t,std::string> > Graph;
 int fileId;
-
 
 bool saveGraphToFile(std::string file, Graph g, int selector)
 {
@@ -54,16 +54,6 @@ bool readGraphFromFile(std::string file, Graph& g, int selector)
 
 }
 
-void addAllEdges(Graph& g)
-{
-	typedef boost::graph_traits<Graph>::vertex_iterator vertex_iter;
-	std::pair<vertex_iter, vertex_iter> vp1,vp2;
-	for (vp1 = vertices(g); vp1.first != vp1.second; ++vp1.first)
-		for (vp2.first = vp1.first+1, vp2.second = vp1.second; vp2.first < vp2.second; ++vp2.first){
-			boost::add_edge(*vp1.first,*vp2.first,g);
-		}
-}
-
 template <typename Clique>
 struct vertexFilter
 {
@@ -71,8 +61,13 @@ struct vertexFilter
 	vertexFilter(Clique c) { thisC = c;}
 	bool operator()(const typename boost::graph_traits<Graph>::vertex_descriptor& v) const
 	{
-
-		return false;
+		bool inClique = false;
+		typename Clique::const_iterator i, end = thisC.end();
+		for(i = thisC.begin(); i != end; ++i) {
+			if (v==*i)
+				inClique = true;
+		}
+		return inClique;
 
 	}
 	Clique thisC;
@@ -82,31 +77,46 @@ template <typename Clique>
 struct edgeFilter
 {
 	edgeFilter() { }
-	edgeFilter(Clique c) { thisC = c;}
-	bool operator()(const typename boost::graph_traits<Graph>::edge_descriptor& e, Graph g) const
+	edgeFilter(Clique c, Graph g) { thisC = c; thisG = g;}
+	bool operator()(const typename boost::graph_traits<Graph>::edge_descriptor& e) const
 	{
-		VertexDescriptor u;
-		u = boost::source(e,g);
-		std::cout<<u;
-		return false;
+
+		int inClique = 0;
+		VertexDescriptor u,v;
+		u = boost::source(e,thisG);
+		v = boost::target(e,thisG);
+
+		typename Clique::const_iterator i, end = thisC.end();
+		for(i = thisC.begin(); i != end; ++i) {
+			if (u==*i)
+				inClique++;
+			else if (v==*i)
+				inClique++;
+		}
+
+		bool filter = inClique ==2;
+		return filter;
 
 	}
 	typedef boost::graph_traits<Graph>::vertex_descriptor VertexDescriptor;
 	Clique thisC;
+	Graph thisG;
 };
 
 template <typename OutputStream>
 struct clique_printer
 {
-
 	boost::property_map<Graph, boost::vertex_name_t>::type v_names;
 	boost::property_map<Graph, boost::edge_name_t>::type e_names;
 	boost::property_map<Graph, boost::vertex_name_t>::type v_namesNew;
 	boost::property_map<Graph, boost::edge_name_t>::type e_namesNew;
+	int maxDim;
+	Graph maxClique;
 
 	clique_printer(OutputStream& stream, boost::property_map<Graph, boost::vertex_name_t>::type v_namesP, boost::property_map<Graph, boost::edge_name_t>::type e_namesP)
         : os(stream)
     {
+		maxDim = 0;
 		fileId = 0;
 		v_names = v_namesP;
     	e_names = e_namesP;
@@ -115,25 +125,18 @@ struct clique_printer
     template <typename Clique, typename Graph>
     void clique(const Clique& c, const Graph& g)
     {
-    	//vertexFilter<Clique> filter(c);
-    	//  typedef boost::filtered_graph<Graph, boost::keep_all, vertexFilter<Clique> > FilteredGraphType;
-    	//  FilteredGraphType filteredGraph(g, boost::keep_all(), filter); // (graph, EdgePredicate, VertexPredicate)
-    	edgeFilter<Clique> filter(c);
-        typedef boost::filtered_graph<Graph, edgeFilter<Clique> > FilteredGraphType;
-        FilteredGraphType filteredGraph(g, filter); // (graph, EdgePredicate, VertexPredicate)
+    	vertexFilter<Clique> filterV(c);
+    	edgeFilter<Clique> filterE(c, g);
 
-
-//    	Graph gNew(0);
-//    	v_namesNew = get(boost::vertex_name, gNew);
-//    	e_namesNew = get(boost::edge_name, gNew);
-//    	typename Clique::const_iterator i, end = c.end();
-//    	for(i = c.begin(); i != end; ++i) {
-//    		Graph::vertex_descriptor v0 = boost::add_vertex(gNew);
-//    		v_namesNew[v0] = v_names[*i];
-//
-//    	}
-//    	addAllEdges(gNew);
-//    	saveGraphToFile("out"+ boost::lexical_cast<std::string>(fileId) +".dot",gNew, 1);
+    	typedef boost::filtered_graph<Graph, edgeFilter<Clique>, vertexFilter<Clique> > FilteredGraphType;
+        FilteredGraphType filteredGraph(g, filterE, filterV); // (graph, EdgePredicate, VertexPredicate)
+        Graph temp;
+        boost::copy_graph(filteredGraph, temp);
+        int dim = boost::num_vertices(temp);
+        if(dim>maxDim){
+        	maxClique = temp;
+        }
+        saveGraphToFile("maxClique.dot", maxClique,1);
     }
     OutputStream& os;
 };
