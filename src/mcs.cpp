@@ -7,12 +7,14 @@
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/graph/graphviz.hpp>
-
+#include <boost/graph/filtered_graph.hpp>
+#include <boost/graph/graph_utility.hpp>
 
 namespace fs = boost::filesystem;
 
 typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS, boost::property<boost::vertex_name_t,std::string>,boost::property<boost::edge_name_t,std::string> > Graph;
 int fileId;
+
 
 bool saveGraphToFile(std::string file, Graph g, int selector)
 {
@@ -56,15 +58,24 @@ void addAllEdges(Graph& g)
 {
 	typedef boost::graph_traits<Graph>::vertex_iterator vertex_iter;
 	std::pair<vertex_iter, vertex_iter> vp1,vp2;
-	for (vp1 = vertices(g); vp1.first != vp1.second; ++vp1.first) {
-		for (vp2.first = vp1.first+1, vp2.second = vp1.second; vp2.first < vp2.second; ++vp2.first) {
-			std::cout<<"a"<<std::endl;
+	for (vp1 = vertices(g); vp1.first != vp1.second; ++vp1.first)
+		for (vp2.first = vp1.first+1, vp2.second = vp1.second; vp2.first < vp2.second; ++vp2.first){
 			boost::add_edge(*vp1.first,*vp2.first,g);
 		}
-	}
-
-
 }
+
+template <typename Clique>
+struct vertexFilter
+{
+	vertexFilter() { }
+	vertexFilter(Clique c) { thisC = c;}
+	bool operator()(const typename boost::graph_traits<Graph>::vertex_descriptor& v) const
+	{
+
+
+	}
+	Clique thisC;
+};
 
 template <typename OutputStream>
 struct clique_printer
@@ -83,21 +94,25 @@ struct clique_printer
     	e_names = e_namesP;
     }
 
-    template <typename Clique, typename TGraph>
-    void clique(const Clique& c, const TGraph& g)
+    template <typename Clique, typename Graph>
+    void clique(const Clique& c, const Graph& g)
     {
-    	os<<"Found new clique!"<<std::endl;
-    	Graph gNew(0);
-    	v_namesNew = get(boost::vertex_name, gNew);
-    	e_namesNew = get(boost::edge_name, gNew);
-    	typename Clique::const_iterator i, end = c.end();
-    	for(i = c.begin(); i != end; ++i) {
-    		Graph::vertex_descriptor v0 = boost::add_vertex(gNew);
-    		v_namesNew[v0] = v_names[*i];
+    	vertexFilter<Clique> filter(c);
+    	  typedef boost::filtered_graph<Graph, boost::keep_all, vertexFilter<Clique> > FilteredGraphType;
+    	  FilteredGraphType filteredGraph(g, boost::keep_all(), filter); // (graph, EdgePredicate, VertexPredicate)
 
-    	}
-    	addAllEdges(gNew);
-    	saveGraphToFile("out"+ boost::lexical_cast<std::string>(fileId) +".dot",gNew, 1);
+    	  typename FilteredGraphType::vertex_iterator ui,ui_end; boost::tie(ui,ui_end) = vertices(filteredGraph);
+//    	Graph gNew(0);
+//    	v_namesNew = get(boost::vertex_name, gNew);
+//    	e_namesNew = get(boost::edge_name, gNew);
+//    	typename Clique::const_iterator i, end = c.end();
+//    	for(i = c.begin(); i != end; ++i) {
+//    		Graph::vertex_descriptor v0 = boost::add_vertex(gNew);
+//    		v_namesNew[v0] = v_names[*i];
+//
+//    	}
+//    	addAllEdges(gNew);
+//    	saveGraphToFile("out"+ boost::lexical_cast<std::string>(fileId) +".dot",gNew, 1);
     }
     OutputStream& os;
 };
