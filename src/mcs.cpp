@@ -72,8 +72,26 @@ struct vertexFilter
 	bool operator()(const typename boost::graph_traits<Graph>::vertex_descriptor& v) const
 	{
 
+		return false;
 
 	}
+	Clique thisC;
+};
+
+template <typename Clique>
+struct edgeFilter
+{
+	edgeFilter() { }
+	edgeFilter(Clique c) { thisC = c;}
+	bool operator()(const typename boost::graph_traits<Graph>::edge_descriptor& e, Graph g) const
+	{
+		VertexDescriptor u;
+		u = boost::source(e,g);
+		std::cout<<u;
+		return false;
+
+	}
+	typedef boost::graph_traits<Graph>::vertex_descriptor VertexDescriptor;
 	Clique thisC;
 };
 
@@ -97,11 +115,14 @@ struct clique_printer
     template <typename Clique, typename Graph>
     void clique(const Clique& c, const Graph& g)
     {
-    	vertexFilter<Clique> filter(c);
-    	  typedef boost::filtered_graph<Graph, boost::keep_all, vertexFilter<Clique> > FilteredGraphType;
-    	  FilteredGraphType filteredGraph(g, boost::keep_all(), filter); // (graph, EdgePredicate, VertexPredicate)
+    	//vertexFilter<Clique> filter(c);
+    	//  typedef boost::filtered_graph<Graph, boost::keep_all, vertexFilter<Clique> > FilteredGraphType;
+    	//  FilteredGraphType filteredGraph(g, boost::keep_all(), filter); // (graph, EdgePredicate, VertexPredicate)
+    	edgeFilter<Clique> filter(c);
+        typedef boost::filtered_graph<Graph, edgeFilter<Clique> > FilteredGraphType;
+        FilteredGraphType filteredGraph(g, filter); // (graph, EdgePredicate, VertexPredicate)
 
-    	  typename FilteredGraphType::vertex_iterator ui,ui_end; boost::tie(ui,ui_end) = vertices(filteredGraph);
+
 //    	Graph gNew(0);
 //    	v_namesNew = get(boost::vertex_name, gNew);
 //    	e_namesNew = get(boost::edge_name, gNew);
